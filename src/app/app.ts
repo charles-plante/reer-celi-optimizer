@@ -22,9 +22,9 @@ import { TaxService, CombinedBracket, YearSavings } from './services/tax.service
   styleUrl: './app.css',
 })
 export class App {
-  salary = 130000;
-  locatif = 7500;
-  reerContrib = 25000;
+  salary = 80000;
+  locatif = 0;
+  reerContrib = 5000;
   celiContrib = 7000;
   reerSpace = 50000;
   celiSpace = 105000;
