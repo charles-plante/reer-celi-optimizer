@@ -1,0 +1,158 @@
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<div class="app-container">
+  <div class="app-inner">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-title">
+        <div class="logo-icon">$</div>
+        <h1>Optimisateur REER vs CELI</h1>
+      </div>
+      <p class="subtitle">Fiscalité Québec — Visualisez l'impact en temps réel</p>
+    </div>
+
+    <div class="main-grid">
+      <!-- Left panel -->
+      <div>
+        <div class="panel">
+          <div class="panel-label">Paramètres</div>
+
+          <app-slider icon="💼" label="Salaire brut" [value]="salary" (valueChange)="salary = $event" [min]="30000" [max]="300000" [step]="5000"></app-slider>
+          <app-slider icon="🏠" label="Revenus locatifs nets" [value]="locatif" (valueChange)="locatif = $event" [min]="0" [max]="100000" [step]="500"></app-slider>
+
+          <div class="divider"></div>
+
+          <app-slider icon="📊" label="Cotisation REER" [value]="reerContrib" (valueChange)="reerContrib = $event" [min]="0" [max]="maxReerContrib" [step]="1000"></app-slider>
+          <app-slider icon="🛡️" label="Cotisation CELI" [value]="celiContrib" (valueChange)="celiContrib = $event" [min]="0" [max]="maxCeliContrib" [step]="500"></app-slider>
+
+          <div class="divider"></div>
+
+          <app-slider icon="📅" label="Espace REER disponible" [value]="reerSpace" (valueChange)="reerSpace = $event" [min]="0" [max]="200000" [step]="1000"></app-slider>
+          <app-slider icon="📅" label="Espace CELI disponible" [value]="celiSpace" (valueChange)="celiSpace = $event" [min]="0" [max]="200000" [step]="1000"></app-slider>
+
+          <div class="divider"></div>
+
+          <!-- Years slider (custom inline) -->
+          <div style="margin-bottom: 8px">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px">
+              <label class="years-label">
+                <span style="font-size: 16px">📆</span>
+                Étaler sur combien d'années
+              </label>
+              <span class="years-value">{{ years }} an{{ years > 1 ? 's' : '' }}</span>
+            </div>
+            <input
+              type="range"
+              [min]="1"
+              [max]="5"
+              [step]="1"
+              [value]="years"
+              (input)="years = +$any($event.target).value"
+              style="width: 100%; accent-color: #f59e0b; height: 6px; cursor: pointer"
+            />
+          </div>
+        </div>
+
+        <app-optimal-split
+          [salary]="salary"
+          [locatif]="locatif"
+          [totalContrib]="reerContrib + celiContrib"
+          [reerSpace]="reerSpace"
+          [celiSpace]="celiSpace"
+        ></app-optimal-split>
+      </div>
+
+      <!-- Right panel -->
+      <div class="right-column">
+        <!-- Key metrics -->
+        <div class="metrics-row">
+          <app-stat-card
+            label="Taux marginal avant"
+            [value]="taxService.formatPct(marginalBefore)"
+            [sublabel]="'Revenu: ' + taxService.formatMoney(totalIncome)"
+          ></app-stat-card>
+          <app-stat-card
+            label="Taux marginal après"
+            [value]="taxService.formatPct(marginalAfter)"
+            [sublabel]="'Revenu: ' + taxService.formatMoney(incomeAfterReer)"
+          ></app-stat-card>
+          <app-stat-card
+            [accent]="true"
+            label="Économie d'impôt REER"
+            [value]="taxService.formatMoney(taxSaved)"
+            [sublabel]="'Taux moy. de déduction: ' + taxService.formatPct(avgDeductionRate)"
+          ></app-stat-card>
+        </div>
+
+        <!-- Bracket visualization -->
+        <div class="panel">
+          <div class="section-title">Paliers d'imposition combinés (QC + Fed)</div>
+          <div class="section-subtitle">La zone hachurée montre la portion déduite par le REER</div>
+          <app-bracket-bar
+            [brackets]="brackets"
+            [income]="totalIncome"
+            [afterIncome]="incomeAfterReer"
+          ></app-bracket-bar>
+        </div>
+
+        <!-- Multi-year breakdown -->
+        <div class="panel">
+          <div class="section-title">
+            {{ years > 1 ? 'Étalement sur ' + years + ' ans' : 'Cotisation en 1 an' }}
+          </div>
+
+          <div class="year-list">
+            @for (sy of savingsPerYear; track sy.year) {
+              <div class="year-row">
+                <div class="year-badge">{{ sy.year }}</div>
+                <div style="flex: 1">
+                  <div class="year-contrib">REER: {{ taxService.formatMoney(sy.contrib) }}</div>
+                  <div class="year-rate">Taux moyen: {{ taxService.formatPct(sy.avgRate) }}</div>
+                </div>
+                <div style="text-align: right">
+                  <div class="year-saved">{{ taxService.formatMoney(sy.saved) }}</div>
+                  <div class="year-return-label">retour</div>
+                </div>
+              </div>
+            }
+          </div>
+
+          <div class="total-row">
+            <span class="total-label">Total économie sur {{ years }} an{{ years > 1 ? 's' : '' }}</span>
+            <span class="total-value">{{ taxService.formatMoney(totalSavedMultiYear) }}</span>
+          </div>
+
+          @if (years > 1) {
+            <div [class]="spreadBetter ? 'spread-indicator better' : (spreadWorse ? 'spread-indicator worse' : 'spread-indicator neutral')">
+              @if (spreadBetter) {
+                ✓ Étaler = {{ taxService.formatMoney(spreadDiff) }} de plus qu'en 1 an
+              } @else if (spreadWorse) {
+                Étaler = {{ taxService.formatMoney(-spreadDiff) }} de moins qu'en 1 an
+              } @else {
+                Même résultat qu'en 1 an
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Projection chart -->
+        <div class="panel">
+          <app-projection-chart
+            [reerContrib]="reerPerYear"
+            [celiContrib]="celiContrib"
+            [years]="10"
+          ></app-projection-chart>
+        </div>
+
+        <!-- Family Allowance Impact -->
+        <app-family-allowance
+          [familyIncome]="totalIncome"
+          [reerContrib]="reerContrib"
+        ></app-family-allowance>
+      </div>
+    </div>
+
+    <div class="footer">
+      ⚠️ Outil à titre indicatif seulement — Consultez un fiscaliste pour une planification personnalisée
+    </div>
+  </div>
+</div>
