@@ -16,8 +16,12 @@
         <div class="panel">
           <div class="panel-label">Paramètres</div>
 
-          <app-slider icon="💼" label="Salaire brut" [value]="salary" (valueChange)="salary = $event" [min]="30000" [max]="300000" [step]="5000"></app-slider>
+          <app-slider icon="💼" label="Salaire brut" [value]="salary" (valueChange)="salary = $event" [min]="15000" [max]="300000" [step]="1000"></app-slider>
           <app-slider icon="🏠" label="Revenus locatifs nets" [value]="locatif" (valueChange)="locatif = $event" [min]="0" [max]="100000" [step]="500"></app-slider>
+
+          <div class="divider"></div>
+
+          <app-slider icon="💵" label="Budget total à investir" [value]="totalBudget" (valueChange)="totalBudget = $event" [min]="0" [max]="50000" [step]="1000"></app-slider>
 
           <div class="divider"></div>
 
@@ -55,7 +59,7 @@
         <app-optimal-split
           [salary]="salary"
           [locatif]="locatif"
-          [totalContrib]="reerContrib + celiContrib"
+          [totalContrib]="totalBudget"
           [reerSpace]="reerSpace"
           [celiSpace]="celiSpace"
         ></app-optimal-split>
@@ -148,6 +152,13 @@
           [familyIncome]="totalIncome"
           [reerContrib]="reerContrib"
         ></app-family-allowance>
+
+        <!-- Other Credits Impact -->
+        <app-credits-impact
+          [familyIncome]="totalIncome"
+          [workIncome]="salary"
+          [reerContrib]="reerContrib"
+        ></app-credits-impact>
       </div>
     </div>
 

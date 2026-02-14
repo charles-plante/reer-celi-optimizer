@@ -5,6 +5,7 @@ import { BracketBarComponent } from './components/bracket-bar/bracket-bar.compon
 import { ProjectionChartComponent } from './components/projection-chart/projection-chart.component';
 import { OptimalSplitComponent } from './components/optimal-split/optimal-split.component';
 import { FamilyAllowanceComponent } from './components/family-allowance/family-allowance.component';
+import { CreditsImpactComponent } from './components/credits-impact/credits-impact.component';
 import { TaxService, CombinedBracket, YearSavings } from './services/tax.service';
 
 @Component({
@@ -17,15 +18,17 @@ import { TaxService, CombinedBracket, YearSavings } from './services/tax.service
     ProjectionChartComponent,
     OptimalSplitComponent,
     FamilyAllowanceComponent,
+    CreditsImpactComponent,
   ],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
 export class App {
-  salary = 80000;
+  salary = 60000;
   locatif = 0;
   reerContrib = 5000;
   celiContrib = 7000;
+  totalBudget = 12000;
   reerSpace = 50000;
   celiSpace = 105000;
   years = 2;

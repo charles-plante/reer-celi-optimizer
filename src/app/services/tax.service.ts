@@ -39,6 +39,18 @@ export interface FamilyAllowanceResult {
   totalGain: number;
 }
 
+export interface CreditImpact {
+  name: string;
+  before: number;
+  after: number;
+  gain: number;
+}
+
+export interface CreditsImpactResult {
+  credits: CreditImpact[];
+  totalGain: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class TaxService {
   readonly FEDERAL_BRACKETS: TaxBracket[] = [
@@ -288,6 +300,149 @@ export class TaxService {
       qcAfter,
       qcGain,
       totalGain: ccbGain + qcGain,
+    };
+  }
+
+  // ===== CRÉDIT TPS/TVH (2024-2025) =====
+  readonly GST_BASE_ADULT = 340;
+  readonly GST_SINGLE_SUPPLEMENT = 179;
+  readonly GST_PER_CHILD = 179;
+  readonly GST_THRESHOLD = 44681;
+  readonly GST_REDUCTION_RATE = 0.05;
+
+  calcGSTCredit(familyIncome: number, isCouple: boolean, numChildren: number): number {
+    let maxCredit: number;
+    if (isCouple) {
+      maxCredit = this.GST_BASE_ADULT * 2;
+    } else {
+      maxCredit = this.GST_BASE_ADULT + this.GST_SINGLE_SUPPLEMENT;
+    }
+    maxCredit += numChildren * this.GST_PER_CHILD;
+
+    if (familyIncome <= this.GST_THRESHOLD) return maxCredit;
+
+    const reduction = (familyIncome - this.GST_THRESHOLD) * this.GST_REDUCTION_RATE;
+    return Math.max(0, maxCredit - reduction);
+  }
+
+  // ===== CRÉDIT D'IMPÔT POUR SOLIDARITÉ QC (2024-2025) =====
+  readonly SOLIDARITY_QST_SINGLE = 340;
+  readonly SOLIDARITY_QST_COUPLE = 680;
+  readonly SOLIDARITY_HOUSING = 731;
+  readonly SOLIDARITY_THRESHOLD_SINGLE = 24185;
+  readonly SOLIDARITY_THRESHOLD_COUPLE = 39335;
+  readonly SOLIDARITY_REDUCTION_RATE = 0.06;
+
+  calcSolidarityCredit(familyIncome: number, isCouple: boolean, isRenter: boolean): number {
+    const qstComponent = isCouple ? this.SOLIDARITY_QST_COUPLE : this.SOLIDARITY_QST_SINGLE;
+    const housingComponent = isRenter ? this.SOLIDARITY_HOUSING : 0;
+    const maxCredit = qstComponent + housingComponent;
+
+    const threshold = isCouple ? this.SOLIDARITY_THRESHOLD_COUPLE : this.SOLIDARITY_THRESHOLD_SINGLE;
+    if (familyIncome <= threshold) return maxCredit;
+
+    const reduction = (familyIncome - threshold) * this.SOLIDARITY_REDUCTION_RATE;
+    return Math.max(0, maxCredit - reduction);
+  }
+
+  // ===== ALLOCATION CANADIENNE POUR LES TRAVAILLEURS (ACT/CWB) 2024 =====
+  readonly CWB_MAX_SINGLE = 1518;
+  readonly CWB_MAX_FAMILY = 2616;
+  readonly CWB_PHASE_IN_START = 3000;
+  readonly CWB_PHASE_IN_RATE = 0.275;
+  readonly CWB_PHASE_OUT_SINGLE = 24975;
+  readonly CWB_PHASE_OUT_FAMILY = 28494;
+  readonly CWB_PHASE_OUT_RATE = 0.15;
+
+  calcCWB(workIncome: number, familyIncome: number, isCouple: boolean): number {
+    const maxBenefit = isCouple ? this.CWB_MAX_FAMILY : this.CWB_MAX_SINGLE;
+    const phaseOutStart = isCouple ? this.CWB_PHASE_OUT_FAMILY : this.CWB_PHASE_OUT_SINGLE;
+
+    if (workIncome <= this.CWB_PHASE_IN_START) return 0;
+
+    const phaseIn = Math.min(
+      (workIncome - this.CWB_PHASE_IN_START) * this.CWB_PHASE_IN_RATE,
+      maxBenefit
+    );
+
+    if (familyIncome <= phaseOutStart) return phaseIn;
+
+    const phaseOut = (familyIncome - phaseOutStart) * this.CWB_PHASE_OUT_RATE;
+    return Math.max(0, phaseIn - phaseOut);
+  }
+
+  // ===== PRIME AU TRAVAIL QC (2024) =====
+  readonly WP_MAX_SINGLE = 1175;
+  readonly WP_MAX_COUPLE = 1833;
+  readonly WP_PHASE_IN_SINGLE = 2400;
+  readonly WP_PHASE_IN_COUPLE = 3600;
+  readonly WP_PHASE_IN_RATE = 0.0988;
+  readonly WP_PHASE_OUT_SINGLE = 12613;
+  readonly WP_PHASE_OUT_COUPLE = 19209;
+  readonly WP_PHASE_OUT_RATE = 0.10;
+
+  calcWorkPremium(workIncome: number, familyIncome: number, isCouple: boolean): number {
+    const maxBenefit = isCouple ? this.WP_MAX_COUPLE : this.WP_MAX_SINGLE;
+    const phaseInStart = isCouple ? this.WP_PHASE_IN_COUPLE : this.WP_PHASE_IN_SINGLE;
+    const phaseOutStart = isCouple ? this.WP_PHASE_OUT_COUPLE : this.WP_PHASE_OUT_SINGLE;
+
+    if (workIncome <= phaseInStart) return 0;
+
+    const phaseIn = Math.min(
+      (workIncome - phaseInStart) * this.WP_PHASE_IN_RATE,
+      maxBenefit
+    );
+
+    if (familyIncome <= phaseOutStart) return phaseIn;
+
+    const phaseOut = (familyIncome - phaseOutStart) * this.WP_PHASE_OUT_RATE;
+    return Math.max(0, phaseIn - phaseOut);
+  }
+
+  // ===== CALCUL COMBINÉ DE TOUS LES CRÉDITS =====
+
+  calcAllCreditsImpact(
+    familyIncome: number,
+    workIncome: number,
+    reerContrib: number,
+    isCouple: boolean,
+    isRenter: boolean,
+    numChildren: number
+  ): CreditsImpactResult {
+    const incomeAfter = familyIncome - reerContrib;
+
+    const credits: CreditImpact[] = [
+      {
+        name: 'Crédit TPS/TVH',
+        before: this.calcGSTCredit(familyIncome, isCouple, numChildren),
+        after: this.calcGSTCredit(incomeAfter, isCouple, numChildren),
+        gain: 0,
+      },
+      {
+        name: 'Crédit de solidarité (QC)',
+        before: this.calcSolidarityCredit(familyIncome, isCouple, isRenter),
+        after: this.calcSolidarityCredit(incomeAfter, isCouple, isRenter),
+        gain: 0,
+      },
+      {
+        name: 'Allocation canadienne pour travailleurs',
+        before: this.calcCWB(workIncome, familyIncome, isCouple),
+        after: this.calcCWB(workIncome, incomeAfter, isCouple),
+        gain: 0,
+      },
+      {
+        name: 'Prime au travail (QC)',
+        before: this.calcWorkPremium(workIncome, familyIncome, isCouple),
+        after: this.calcWorkPremium(workIncome, incomeAfter, isCouple),
+        gain: 0,
+      },
+    ];
+
+    credits.forEach(c => c.gain = c.after - c.before);
+
+    return {
+      credits,
+      totalGain: credits.reduce((sum, c) => sum + c.gain, 0),
     };
   }
 
